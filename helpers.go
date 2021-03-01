@@ -35,6 +35,8 @@ func protected(sigMeta *SignatureInput, r *http.Request) ([]byte, error) {
 			fmt.Fprintf(&protected, "*expires: %d\n", sigMeta.Expires)
 		case "*request-target":
 			fmt.Fprintf(&protected, "*request-target: %s\n", requestTarget(r))
+		case "host":
+			fmt.Fprintf(&protected, "host: %s\n", r.Host)
 		default:
 			if val := r.Header.Get(h); val != "" {
 				fmt.Fprintf(&protected, "%s: %s\n", strings.ToLower(h), r.Header.Get(h))
@@ -53,5 +55,6 @@ func requestTarget(r *http.Request) string {
 	if r.URL.RawQuery != "" {
 		rt = fmt.Sprintf("%s?%s", rt, r.URL.RawQuery)
 	}
+
 	return rt
 }

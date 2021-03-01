@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/ucarion/sfv"
 )
@@ -53,11 +52,21 @@ func ParseSignatureInput(input string) ([]*SignatureInput, error) {
 			Created:   meta.Created,
 			Expires:   meta.Expires,
 			KeyID:     meta.KeyID,
-			Algorithm: Algorithm(meta.Algorithm),
+			Algorithm: AlgorithmHS2019,
+			Headers:   []string{},
+		}
+
+		// Filter not supported algorithm
+		if meta.Algorithm != "" && meta.Algorithm != string(AlgorithmHS2019) {
+			// Skip unsupported signature
+			continue
+		}
+		if meta.Algorithm == "" {
+			// Fallback to hs2019
+			sig.Algorithm = AlgorithmHS2019
 		}
 
 		// Extract headers
-		sig.Headers = []string{}
 		for _, h := range meta.Headers {
 			sig.Headers = append(sig.Headers, strings.ToLower(strings.TrimSpace(h)))
 		}
@@ -82,41 +91,14 @@ func ParseSignatureSet(input string) (*SignatureSet, error) {
 
 	// No error
 	return &SignatureSet{
-		sigs: sigMap,
+		RWMutex: sync.RWMutex{},
+		sigs:    sigMap,
 	}, nil
 }
 
 // -----------------------------------------------------------------------------
 
-// SignatureInput represents signature metadata.
-type SignatureInput struct {
-	ID        string
-	Algorithm Algorithm
-	KeyID     string
-	Expires   uint64
-	Created   uint64
-	Headers   []string
-}
-
-func (s *SignatureInput) String() string {
-	res := fmt.Sprintf(
-		`%s=(%s); alg="%s"; kid="%s"; created=%d`,
-		s.ID, strings.Join(s.Headers, ", "), s.Algorithm, s.KeyID, s.Created,
-	)
-	if s.Expires > 0 {
-		res = fmt.Sprintf("%s; expires=%d", res, s.Expires)
-	}
-	return res
-}
-
-// IsExpired returns true if signature is expired.
-func (s *SignatureInput) IsExpired() bool {
-	return s.Expires > 0 && s.Expires < uint64(time.Now().Unix())
-}
-
-// -----------------------------------------------------------------------------
-
-// SignatureSet represents a dictionnary of signature-input reference and
+// SignatureSet represents a dictionary of signature-input reference and
 // signature payload.
 type SignatureSet struct {
 	sync.RWMutex
@@ -141,6 +123,7 @@ func (set *SignatureSet) Get(name string) ([]byte, bool) {
 		return nil, false
 	}
 	sig, ok := set.sigs[name]
+
 	return sig, ok
 }
 
@@ -152,13 +135,21 @@ func (set *SignatureSet) Keys() []string {
 	for k := range set.sigs {
 		res = append(res, k)
 	}
+
 	return res
 }
 
 func (set *SignatureSet) String() string {
-	out, err := sfv.Marshal(set.sigs)
-	if err != nil {
-		panic(err)
+	res := make([]string, len(set.sigs))
+	i := 0
+	for k, v := range set.sigs {
+		data, err := sfv.Marshal(v)
+		if err != nil {
+			panic(err)
+		}
+		res[i] = fmt.Sprintf("%s=%s", k, data)
+		i++
 	}
-	return out
+
+	return strings.Join(res, ", ")
 }

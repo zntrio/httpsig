@@ -45,6 +45,7 @@ type verifier struct {
 }
 
 // Verify request with current signature.
+//nolint:cyclop // Refactor
 func (v *verifier) Verify(ctx context.Context, sigMeta *SignatureInput, signature []byte, r *http.Request) (bool, error) {
 	// Check arguments
 	if sigMeta == nil {
@@ -109,6 +110,7 @@ func (v *verifier) verifyRSA(pub *rsa.PublicKey, protected, signature []byte) (b
 		if errors.Is(err, rsa.ErrVerification) {
 			return false, nil
 		}
+
 		return false, fmt.Errorf("unable to verify RSASSA-PSS signature: %w", err)
 	}
 
@@ -133,6 +135,7 @@ func (v *verifier) verifyECDSA(pub *ecdsa.PublicKey, protected, signature []byte
 // verifyEdDSA uses Ed25519 curve with SHA-512
 func (v *verifier) verifyEdDSA(pub ed25519.PublicKey, protected, signature []byte) (bool, error) {
 	valid := ed25519.Verify(pub, protected, signature)
+
 	return valid, nil
 }
 
@@ -140,7 +143,9 @@ func (v *verifier) verifyEdDSA(pub ed25519.PublicKey, protected, signature []byt
 func (v *verifier) verifyHMAC(secret, protected, signature []byte) (bool, error) {
 	// Compute HMAC-SHA-512
 	hm := hmac.New(sha512.New, secret)
-	hm.Write(protected)
+	if _, err := hm.Write(protected); err != nil {
+		return false, fmt.Errorf("unable to write payload for hmac: %w", err)
+	}
 
 	// Compare result
 	if subtle.ConstantTimeCompare(hm.Sum(nil), signature) == 1 {

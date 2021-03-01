@@ -45,6 +45,7 @@ type signer struct {
 }
 
 // Sign the given request using signature-input spec.
+//nolint:cyclop // Refactor
 func (s *signer) Sign(ctx context.Context, sigMeta *SignatureInput, r *http.Request) ([]byte, error) {
 	// Check arguments
 	if sigMeta == nil {
@@ -131,6 +132,7 @@ func (s *signer) signECDSA(priv *ecdsa.PrivateKey, protected []byte) ([]byte, er
 // signEdDSA uses Ed25519 curve with SHA-512
 func (s *signer) signEdDSA(priv ed25519.PrivateKey, protected []byte) ([]byte, error) {
 	sig := ed25519.Sign(priv, protected)
+
 	return sig, nil
 }
 
@@ -138,7 +140,9 @@ func (s *signer) signEdDSA(priv ed25519.PrivateKey, protected []byte) ([]byte, e
 func (s *signer) sealHMAC(secret, protected []byte) ([]byte, error) {
 	// Compute HMAC-SHA-512
 	hm := hmac.New(sha512.New, secret)
-	hm.Write(protected)
+	if _, err := hm.Write(protected); err != nil {
+		return nil, fmt.Errorf("unable to write payload for hmac: %w", err)
+	}
 
 	// Default to false
 	return hm.Sum(nil), nil
