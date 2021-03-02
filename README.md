@@ -15,7 +15,7 @@ the draft specification [draft-ietf-httpbis-message-signatures](https://www.ietf
 
 `Signature-Input` - HTTP Header
 
-> Contains a Dictionary typed Structed Field Value (RFC8941)
+> Contains a Dictionary typed Structured Field Value (RFC8941)
 
 * `key` is the definition identifier
 * `value` is a `List with Params`
@@ -28,7 +28,7 @@ Signature-Input: sig1=(*request-target, *created, host, date,
 
 `Signature` - HTTP Header
 
-> Contains a Dictionary typed Structed Field Value (RFC8941)
+> Contains a Dictionary typed Structured Field Value (RFC8941)
 
 * `key` is the definition identifier
 * `value` is an `Item` containing `Binary` base64 encoded byte array
