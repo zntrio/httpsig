@@ -19,35 +19,128 @@ package httpsig
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/ucarion/sfv"
 )
 
 func protected(sigMeta *SignatureInput, r *http.Request) ([]byte, error) {
+	// Check arguments
+	if sigMeta == nil {
+		return nil, errors.New("unable to generate protected content with nil signature-input")
+	}
+	if r == nil {
+		return nil, errors.New("unable to generate protected content with nil request")
+	}
+
+	// Clean headers
+	canonicalHeaders := map[string]string{}
+	canonicalHeaders["*created"] = fmt.Sprintf("%d", sigMeta.Created)
+	canonicalHeaders["*request-target"] = requestTarget(r)
+	if sigMeta.Expires > 0 {
+		canonicalHeaders["*expires"] = fmt.Sprintf("%d", sigMeta.Expires)
+	}
+	canonicalHeaders["host"] = r.Host
+
+	// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#name-http-header-fields
+	for key, values := range r.Header {
+		var hdrs []string
+		for _, v := range values {
+			hdrs = append(hdrs, strings.TrimSpace(v))
+		}
+		canonicalHeaders[strings.ToLower(key)] = strings.Join(hdrs, ", ")
+	}
+
 	// Prepare protected body
 	var protected bytes.Buffer
 	for _, h := range sigMeta.Headers {
-		switch h {
-		case "*created":
-			fmt.Fprintf(&protected, "*created: %d\n", sigMeta.Created)
-		case "*expires":
-			fmt.Fprintf(&protected, "*expires: %d\n", sigMeta.Expires)
-		case "*request-target":
-			fmt.Fprintf(&protected, "*request-target: %s\n", requestTarget(r))
-		case "host":
-			fmt.Fprintf(&protected, "host: %s\n", r.Host)
-		default:
-			if val := r.Header.Get(h); val != "" {
-				fmt.Fprintf(&protected, "%s: %s\n", strings.ToLower(h), r.Header.Get(h))
-			} else {
-				return nil, fmt.Errorf("request does not contains '%s' header", h)
-			}
+		if err := canonicalExtract(h, canonicalHeaders, &protected); err != nil {
+			return nil, fmt.Errorf("unable to extract '%s' header: %w", h, err)
 		}
 	}
 
 	// No error
 	return protected.Bytes(), nil
+}
+
+func canonicalExtract(key string, canonicalHeaders map[string]string, protected *bytes.Buffer) error {
+	// Check if value contains a colon character
+	if strings.Contains(key, ":") {
+		// Split value
+		parts := strings.SplitN(key, ":", 2)
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid header reference '%s'", key)
+		}
+
+		// Check if prefix value is an existing header
+		prefix := parts[0]
+		hValue, ok := canonicalHeaders[prefix]
+		if !ok {
+			return fmt.Errorf("header '%s' not found", prefix)
+		}
+
+		// Suffix is integer => list
+		if idx, errConv := strconv.Atoi(parts[1]); errConv == nil && idx >= 0 {
+			// Deserialize as List
+			var list sfv.List
+			if err := sfv.Unmarshal(hValue, &list); err != nil {
+				return fmt.Errorf("unable to decode '%s' value as a list: %w", prefix, err)
+			}
+
+			// Check size match
+			if idx > len(list) {
+				return fmt.Errorf("invalid list index '%d' for '%s'", idx, prefix)
+			}
+
+			// Marshal dictionary
+			member, errMarshal := sfv.Marshal(list[:idx])
+			if errMarshal != nil {
+				return fmt.Errorf("unable to marshal item '%s': %w", key, errMarshal)
+			}
+
+			fmt.Fprintf(protected, "%s: %s\n", strings.ToLower(prefix), member)
+		} else {
+			// Deserialize as Map
+			var dict sfv.Dictionary
+			if errUnmarshal := sfv.Unmarshal(hValue, &dict); errUnmarshal != nil {
+				return fmt.Errorf("unable to decode '%s' value as a dictionary: %w", prefix, errUnmarshal)
+			}
+
+			// Retrieve list member
+			value, ok := dict.Map[parts[1]]
+			if !ok {
+				return fmt.Errorf("invalid dictionary key '%s' for '%s'", parts[1], prefix)
+			}
+
+			// Marshal dictionary
+			member, errMarshal := sfv.Marshal(sfv.Dictionary{
+				Keys: []string{
+					strings.ToLower(parts[1]),
+				},
+				Map: map[string]sfv.Member{
+					strings.ToLower(parts[1]): value,
+				},
+			})
+			if errMarshal != nil {
+				return fmt.Errorf("unable to marshal item '%s': %w", key, errMarshal)
+			}
+
+			fmt.Fprintf(protected, "%s: %s\n", strings.ToLower(prefix), member)
+		}
+	} else {
+		hValue, ok := canonicalHeaders[key]
+		if !ok {
+			return fmt.Errorf("header '%s' not found", key)
+		}
+
+		fmt.Fprintf(protected, "%s: %s\n", strings.ToLower(key), hValue)
+	}
+
+	return nil
 }
 
 func requestTarget(r *http.Request) string {
