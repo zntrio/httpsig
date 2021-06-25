@@ -60,8 +60,13 @@ func (v *verifier) Verify(ctx context.Context, sigMeta *SignatureInput, signatur
 		return false, ErrExpiredSignature
 	}
 
-	// Only 'hs2019' algorithms are supported
-	if sigMeta.Algorithm != AlgorithmHS2019 {
+	switch sigMeta.Algorithm {
+	case AlgorithmRSAPSSSHA512:
+	case AlgorithmRSAV15SHA256:
+	case AlgorithmHMACSHA256:
+	case AlgorithmECDSAP256SHA256:
+	case AlgorithmEdDSAEd25519BLAKE2B512:
+	default:
 		return false, ErrNotSupportedSignature
 	}
 

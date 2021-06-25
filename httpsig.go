@@ -31,7 +31,8 @@ type sfvSigInput struct {
 	Created   uint64 `sfv:"created"`
 	Expires   uint64 `sfv:"expires"`
 	Algorithm string `sfv:"alg"`
-	KeyID     string `sfv:"kid"`
+	KeyID     string `sfv:"keyid"`
+	Nonce     string `sfv:"nonce"`
 }
 
 // ParseSignatureInput returns the SignatureInput descriptor.
@@ -49,21 +50,24 @@ func ParseSignatureInput(input string) ([]*SignatureInput, error) {
 	for id, meta := range sigInputMap {
 		sig := &SignatureInput{
 			ID:        id,
+			Algorithm: Algorithm(meta.Algorithm),
 			Created:   meta.Created,
 			Expires:   meta.Expires,
 			KeyID:     meta.KeyID,
-			Algorithm: AlgorithmHS2019,
 			Headers:   []string{},
+			Nonce:     meta.Nonce,
 		}
 
 		// Filter not supported algorithm
-		if meta.Algorithm != "" && meta.Algorithm != string(AlgorithmHS2019) {
-			// Skip unsupported signature
+		switch sig.Algorithm {
+		case AlgorithmRSAPSSSHA512:
+		case AlgorithmRSAV15SHA256:
+		case AlgorithmHMACSHA256:
+		case AlgorithmECDSAP256SHA256:
+		case AlgorithmEdDSAEd25519BLAKE2B512:
+		default:
+			// Skip invalid signature algorithm
 			continue
-		}
-		if meta.Algorithm == "" {
-			// Fallback to hs2019
-			sig.Algorithm = AlgorithmHS2019
 		}
 
 		// Extract headers

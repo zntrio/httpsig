@@ -42,16 +42,33 @@ func TestParse(t *testing.T) {
 		{
 			name: "valid",
 			args: args{
-				signature: `sig1=(*request-target *created host date cache-control x-empty-header x-example);kid="test-key-a";alg=hs2019;created=1402170695;expires=1402170995`,
+				signature: `sig1=();created=1618884475;keyid="test-key-rsa-pss";alg="rsa-pss-sha512"`,
 			},
 			want: []*SignatureInput{
 				{
 					ID:        "sig1",
-					Headers:   []string{"*request-target", "*created", "host", "date", "cache-control", "x-empty-header", "x-example"},
-					KeyID:     "test-key-a",
-					Algorithm: "hs2019",
-					Created:   1402170695,
-					Expires:   1402170995,
+					Headers:   []string{},
+					KeyID:     "test-key-rsa-pss",
+					Algorithm: "rsa-pss-sha512",
+					Created:   1618884475,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid with headers",
+			args: args{
+				signature: `sig1=("@request-target" "host" "date" "content-type" "digest" "content-length");created=1618884475;keyid="test-key-rsa-pss";alg="rsa-pss-sha512";expires=1618884495;nonce="fpxObpaLKpEdHRErAMmaeEURhibYFdBMvuExQWpMlScKnvQeNGEMXaWEvYDwEWgQ"`,
+			},
+			want: []*SignatureInput{
+				{
+					ID:        "sig1",
+					Headers:   []string{"@request-target", "host", "date", "content-type", "digest", "content-length"},
+					KeyID:     "test-key-rsa-pss",
+					Algorithm: "rsa-pss-sha512",
+					Created:   1618884475,
+					Expires:   1618884495,
+					Nonce:     "fpxObpaLKpEdHRErAMmaeEURhibYFdBMvuExQWpMlScKnvQeNGEMXaWEvYDwEWgQ",
 				},
 			},
 			wantErr: false,

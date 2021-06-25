@@ -27,10 +27,10 @@ import (
 func DefaultSignatureInput(kid string) *SignatureInput {
 	return &SignatureInput{
 		ID:        "sig1",
-		Algorithm: AlgorithmHS2019,
+		Algorithm: AlgorithmRSAPSSSHA512,
 		KeyID:     kid,
 		Created:   uint64(time.Now().Unix()),
-		Headers:   []string{"*created", "*request-target"},
+		Headers:   []string{},
 		Expires:   0, // No expiration
 	}
 }
@@ -44,16 +44,24 @@ type SignatureInput struct {
 	KeyID     string
 	Expires   uint64
 	Created   uint64
+	Nonce     string
 	Headers   []string
 }
 
 func (s *SignatureInput) String() string {
+	return fmt.Sprintf("%s=%s", s.ID, s.Params())
+}
+
+func (s *SignatureInput) Params() string {
 	res := fmt.Sprintf(
-		`%s=(%s); alg="%s"; kid="%s"; created=%d`,
-		s.ID, strings.Join(s.Headers, ", "), s.Algorithm, s.KeyID, s.Created,
+		`(%s); alg="%s"; keyid="%s"; created=%d`,
+		strings.Join(s.Headers, ", "), s.Algorithm, s.KeyID, s.Created,
 	)
 	if s.Expires > 0 {
 		res = fmt.Sprintf("%s; expires=%d", res, s.Expires)
+	}
+	if s.Nonce != "" {
+		res = fmt.Sprintf(`%s; nonce="%s"`, res, s.Nonce)
 	}
 
 	return res

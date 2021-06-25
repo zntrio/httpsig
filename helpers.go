@@ -39,14 +39,14 @@ func protected(sigMeta *SignatureInput, r *http.Request) ([]byte, error) {
 
 	// Clean headers
 	canonicalHeaders := map[string]string{}
-	canonicalHeaders["*created"] = fmt.Sprintf("%d", sigMeta.Created)
-	canonicalHeaders["*request-target"] = requestTarget(r)
+	canonicalHeaders["@request-target"] = requestTarget(r)
+	canonicalHeaders["@created"] = fmt.Sprintf("%d", sigMeta.Created)
 	if sigMeta.Expires > 0 {
-		canonicalHeaders["*expires"] = fmt.Sprintf("%d", sigMeta.Expires)
+		canonicalHeaders["@expires"] = fmt.Sprintf("%d", sigMeta.Expires)
 	}
 	canonicalHeaders["host"] = r.Host
 
-	// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#name-http-header-fields
+	// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-05.html#name-http-header-fields
 	for key, values := range r.Header {
 		var hdrs []string
 		for _, v := range values {
@@ -62,6 +62,9 @@ func protected(sigMeta *SignatureInput, r *http.Request) ([]byte, error) {
 			return nil, fmt.Errorf("unable to extract '%s' header: %w", h, err)
 		}
 	}
+
+	// Append signature params
+	fmt.Fprintf(&protected, "@signature-params: %s\n", sigMeta.Params())
 
 	// No error
 	return protected.Bytes(), nil
