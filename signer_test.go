@@ -35,6 +35,7 @@ import (
 
 func Test_signer_Sign(t *testing.T) {
 	type fields struct {
+		alg             Algorithm
 		keyResolverFunc KeyResolverFunc
 	}
 	type args struct {
@@ -57,12 +58,11 @@ func Test_signer_Sign(t *testing.T) {
 			name: "nil request",
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 			},
 			wantErr: true,
@@ -71,12 +71,11 @@ func Test_signer_Sign(t *testing.T) {
 			name: "sigInput expired",
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   1,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 1,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -86,12 +85,11 @@ func Test_signer_Sign(t *testing.T) {
 			name: "invalid algorithm",
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: "",
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -103,15 +101,15 @@ func Test_signer_Sign(t *testing.T) {
 				keyResolverFunc: func(ctx context.Context, kid string) (interface{}, error) {
 					return nil, ErrKeyNotFound
 				},
+				alg: AlgorithmRSAPSSSHA512,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -123,15 +121,15 @@ func Test_signer_Sign(t *testing.T) {
 				keyResolverFunc: func(ctx context.Context, kid string) (interface{}, error) {
 					return nil, fmt.Errorf("test")
 				},
+				alg: AlgorithmRSAPSSSHA512,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -144,15 +142,15 @@ func Test_signer_Sign(t *testing.T) {
 					pub, _, _ := ed25519.GenerateKey(rand.Reader)
 					return pub, nil
 				},
+				alg: AlgorithmRSAPSSSHA512,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target", "x-not-exist"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target", "x-not-exist"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -165,15 +163,15 @@ func Test_signer_Sign(t *testing.T) {
 					_, priv, _ := ed25519.GenerateKey(rand.Reader)
 					return priv, nil
 				},
+				alg: AlgorithmEdDSAEd25519BLAKE2B512,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   uint64(time.Now().Unix()) + 1000,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target", "*expires", "x-custom-header"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: uint64(time.Now().Unix()) + 1000,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target", "@expires", "x-custom-header"},
 				},
 				r: func() *http.Request {
 					req := httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook?key=1", bytes.NewBufferString("{}"))
@@ -190,15 +188,36 @@ func Test_signer_Sign(t *testing.T) {
 					priv, _ := rsa.GenerateKey(rand.Reader, 2048)
 					return priv, nil
 				},
+				alg: AlgorithmRSAPSSSHA512,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
+				},
+				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
+			},
+			wantErr: false,
+		},
+		{
+			name: "rsassa-pkcs",
+			fields: fields{
+				keyResolverFunc: func(ctx context.Context, kid string) (interface{}, error) {
+					priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+					return priv, nil
+				},
+				alg: AlgorithmRSAV15SHA256,
+			},
+			args: args{
+				sigMeta: &SignatureInput{
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -211,15 +230,15 @@ func Test_signer_Sign(t *testing.T) {
 					priv, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 					return priv, nil
 				},
+				alg: AlgorithmECDSAP256SHA256,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -233,15 +252,15 @@ func Test_signer_Sign(t *testing.T) {
 					io.ReadFull(rand.Reader, secret[:])
 					return secret[:], nil
 				},
+				alg: AlgorithmHMACSHA256,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -253,15 +272,15 @@ func Test_signer_Sign(t *testing.T) {
 				keyResolverFunc: func(ctx context.Context, kid string) (interface{}, error) {
 					return uint64(0), nil
 				},
+				alg: AlgorithmECDSAP256SHA256,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -271,6 +290,7 @@ func Test_signer_Sign(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &signer{
+				alg:             tt.fields.alg,
 				keyResolverFunc: tt.fields.keyResolverFunc,
 			}
 			_, err := s.Sign(tt.args.ctx, tt.args.sigMeta, tt.args.r)

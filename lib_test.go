@@ -21,6 +21,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
@@ -30,10 +31,50 @@ import (
 	"zntr.io/httpsig"
 )
 
-// Imported from spec.
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#name-example-key-rsa-test
+// -----------------------------------------------------------------------------
 
-var testRSAPublicKey = publicKeyDecode([]byte(`-----BEGIN RSA PUBLIC KEY-----
+func rsaPKCS1PublicKeyDecode(data []byte) *rsa.PublicKey {
+	block, _ := pem.Decode(data)
+	key, _ := x509.ParsePKCS1PublicKey(block.Bytes)
+	if key == nil {
+		panic("key must not be nil")
+	}
+	return key
+}
+
+func rsaPKCS1PrivateKeyDecode(data []byte) *rsa.PrivateKey {
+	block, _ := pem.Decode(data)
+	key, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if key == nil {
+		panic("key must not be nil")
+	}
+	return key
+}
+
+func eccPrivateKeyDecode(data []byte) *ecdsa.PrivateKey {
+	block, _ := pem.Decode(data)
+	key, _ := x509.ParseECPrivateKey(block.Bytes)
+	if key == nil {
+		panic("key must not be nil")
+	}
+	return key
+}
+
+func eccPublicKeyDecode(data []byte) *ecdsa.PublicKey {
+	block, _ := pem.Decode(data)
+	key, _ := x509.ParsePKIXPublicKey(block.Bytes)
+	if key == nil {
+		panic("key must not be nil")
+	}
+	return key.(*ecdsa.PublicKey)
+}
+
+// -----------------------------------------------------------------------------
+
+// Imported from spec.
+// https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-05.html#section-b.1.1
+
+var testRSAPublicKey = rsaPKCS1PublicKeyDecode([]byte(`-----BEGIN RSA PUBLIC KEY-----
 MIIBCgKCAQEAhAKYdtoeoy8zcAcR874L8cnZxKzAGwd7v36APp7Pv6Q2jdsPBRrw
 WEBnez6d0UDKDwGbc6nxfEXAy5mbhgajzrw3MOEt8uA5txSKobBpKDeBLOsdJKFq
 MGmXCQvEG7YemcxDTRPxAleIAgYYRjTSd/QBwVW9OwNFhekro3RtlinV0a75jfZg
@@ -42,7 +83,7 @@ uKxI4T+HIaFpv8+rdV6eUgOrB2xeI1dSFFn/nnv5OoZJEIB+VmuKn3DCUcCZSFlQ
 PSXSfBDiUGhwOw76WuSSsf1D4b/vLoJ10wIDAQAB
 -----END RSA PUBLIC KEY-----`))
 
-var testRSAPrivateKey = privateKeyDecode([]byte(`-----BEGIN RSA PRIVATE KEY-----
+var testRSAPrivateKey = rsaPKCS1PrivateKeyDecode([]byte(`-----BEGIN RSA PRIVATE KEY-----
 MIIEqAIBAAKCAQEAhAKYdtoeoy8zcAcR874L8cnZxKzAGwd7v36APp7Pv6Q2jdsP
 BRrwWEBnez6d0UDKDwGbc6nxfEXAy5mbhgajzrw3MOEt8uA5txSKobBpKDeBLOsd
 JKFqMGmXCQvEG7YemcxDTRPxAleIAgYYRjTSd/QBwVW9OwNFhekro3RtlinV0a75
@@ -70,26 +111,35 @@ WtP+fG5Q6Dpdz3LRfm+KwBCWFKQjg7uTxcjerhBWEYPmEMKYwTJF5PBG9/ddvHLQ
 EQeNC8fHGg4UXU8mhHnSBt3EA10qQJfRDs15M38eG2cYwB1PZpDHScDnDA0=
 -----END RSA PRIVATE KEY-----`))
 
-func publicKeyDecode(data []byte) *rsa.PublicKey {
-	block, _ := pem.Decode(data)
-	key, _ := x509.ParsePKCS1PublicKey(block.Bytes)
-	return key
-}
+// -----------------------------------------------------------------------------
 
-func privateKeyDecode(data []byte) *rsa.PrivateKey {
-	block, _ := pem.Decode(data)
-	key, _ := x509.ParsePKCS1PrivateKey(block.Bytes)
-	return key
-}
+// Imported from spec.
+// https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-05.html#section-b.1.3
+
+var testECCP256PublicKey = eccPublicKeyDecode([]byte(`-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEqIVYZVLCrPZHGHjP17CTW0/+D9Lf
+w0EkjqF7xB4FivAxzic30tMM4GF+hR6Dxh71Z50VGGdldkkDXZCnTNnoXQ==
+-----END PUBLIC KEY-----`))
+
+var testECCP256PrivateKey = eccPrivateKeyDecode([]byte(`-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIFKbhfNZfpDsW43+0+JjUr9K+bTeuxopu653+hBaXGA7oAoGCCqGSM49
+AwEHoUQDQgAEqIVYZVLCrPZHGHjP17CTW0/+D9Lfw0EkjqF7xB4FivAxzic30tMM
+4GF+hR6Dxh71Z50VGGdldkkDXZCnTNnoXQ==
+-----END EC PRIVATE KEY-----`))
+
+// -----------------------------------------------------------------------------
+
+// Imported from spec.
+// https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-05.html#section-b.1.3
 
 // -----------------------------------------------------------------------------
 
 // Extracted from spec
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#name-test-cases
-func sampleRequest() *http.Request {
+// https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-05.html#section-b.2
+func sampleTestRequest() *http.Request {
 	r, err := http.ReadRequest(bufio.NewReader(bytes.NewBufferString(`POST /foo?param=value&pet=dog HTTP/1.1
 Host: example.com
-Date: Tue, 07 Jun 2014 20:51:35 GMT
+Date: Tue, 20 Apr 2021 02:07:55 GMT
 Content-Type: application/json
 Digest: SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=
 Content-Length: 18
@@ -104,127 +154,9 @@ Content-Length: 18
 
 // -----------------------------------------------------------------------------
 
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#section-a.3.1.1
-func Test_SigGen_HS2019Minimal(t *testing.T) {
-	si := &httpsig.SignatureInput{
-		ID:        "sig1",
-		Algorithm: httpsig.AlgorithmHS2019,
-		KeyID:     "test-key-a",
-		Created:   1402170695,
-		Headers:   []string{"*created", "*request-target"},
-	}
-
-	// Assert conanical syntax
-	expectedCanonical := `sig1=(*created, *request-target); alg="hs2019"; kid="test-key-a"; created=1402170695`
-	if si.String() != expectedCanonical {
-		t.Fatalf("invalid canonical syntax expected `%s`, got `%s`", expectedCanonical, si.String())
-	}
-
-	// Create operations
-	signer := httpsig.NewSigner(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPrivateKey, nil
-	})
-	verifier := httpsig.NewVerifier(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPublicKey, nil
-	})
-
-	// Create request
-	r := sampleRequest()
-
-	sig, err := signer.Sign(context.Background(), si, r)
-	if err != nil {
-		t.Fatalf("unable to sign: %v", err)
-	}
-
-	valid, errVerify := verifier.Verify(context.Background(), si, sig, r)
-	if errVerify != nil {
-		t.Fatalf("unable to verify: %v", errVerify)
-	}
-
-	// Expected
-	if !valid {
-		t.Fatalf("expected valid, got %v", valid)
-	}
-}
-
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#section-a.3.1.1
-func Test_SigGen_Default(t *testing.T) {
-	si := httpsig.DefaultSignatureInput("test-key-a")
-
-	// Create operations
-	signer := httpsig.NewSigner(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPrivateKey, nil
-	})
-	verifier := httpsig.NewVerifier(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPublicKey, nil
-	})
-
-	// Create request
-	r := sampleRequest()
-
-	sig, err := signer.Sign(context.Background(), si, r)
-	if err != nil {
-		t.Fatalf("unable to sign: %v", err)
-	}
-
-	valid, errVerify := verifier.Verify(context.Background(), si, sig, r)
-	if errVerify != nil {
-		t.Fatalf("unable to verify: %v", errVerify)
-	}
-
-	// Expected
-	if !valid {
-		t.Fatalf("expected valid, got %v", valid)
-	}
-}
-
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#name-hs2019-signature-covering-a
-func Test_SigGen_HS2019AllFields(t *testing.T) {
-	si := &httpsig.SignatureInput{
-		ID:        "sig1",
-		Algorithm: httpsig.AlgorithmHS2019,
-		KeyID:     "test-key-a",
-		Created:   1402170695,
-		Headers:   []string{"*created", "*request-target", "host", "date", "content-type", "digest", "content-length"},
-	}
-
-	// Assert conanical syntax
-	expectedCanonical := `sig1=(*created, *request-target, host, date, content-type, digest, content-length); alg="hs2019"; kid="test-key-a"; created=1402170695`
-	if si.String() != expectedCanonical {
-		t.Fatalf("invalid canonical syntax expected `%s`, got `%s`", expectedCanonical, si.String())
-	}
-
-	// Create operations
-	signer := httpsig.NewSigner(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPrivateKey, nil
-	})
-	verifier := httpsig.NewVerifier(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPublicKey, nil
-	})
-
-	// Create request
-	r := sampleRequest()
-
-	sig, err := signer.Sign(context.Background(), si, r)
-	if err != nil {
-		t.Fatalf("unable to sign: %v", err)
-	}
-
-	valid, errVerify := verifier.Verify(context.Background(), si, sig, r)
-	if errVerify != nil {
-		t.Fatalf("unable to verify: %v", errVerify)
-	}
-
-	// Expected
-	if !valid {
-		t.Fatalf("expected valid, got %v", valid)
-	}
-}
-
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#name-minimal-required-signature-
-func Test_SigVer_Minimal(t *testing.T) {
-	rawSigInput := `sig1=(); kid="test-key-a"; created=1402170695`
-	rawSignature := `sig1=:F0KlO2pMfxIbW11zInSXIciUA517Q+MLclZoWd0zEwAgLPriBudnbrjd6C6+OKsEX1hxlFchALhZ4eTso/7iHgRZV2geuIrtBOjPMRiTJc8OIEvCUc518JYQK4ZXUfLx58Gp1gggWPf9Eh/2xdRl0dIFTvdX8B9im+kEMaMT+fA1OB/T643P2d9MZRkAVQUnmZA2/atH+sbCjNeeOniWe7Bk3HYvrYUHNnFXjApbzSO97goK9O5zONqkJ8vjnZtynotXaL+fAsGxAiDwXXVZ8JLXrAAu/k7gdkgq0o5oxSNBPtKBAI5EogfZBN9k87lWBfcqNV2ZQd+UJ8TMAziYEQ==:`
+// https://www.ietf.org/archive/id/draft-ietf-httpbis-message-signatures-05.html#section-b.2.1
+func Test_SigGen_Minimal(t *testing.T) {
+	rawSigInput := `sig1=();created=1618884475;keyid="test-key-rsa-pss";alg="rsa-pss-sha512"`
 
 	// Parse signature-inputs
 	sigInputs, err := httpsig.ParseSignatureInput(rawSigInput)
@@ -232,61 +164,23 @@ func Test_SigVer_Minimal(t *testing.T) {
 		t.Fatalf("unexpected error httpsig.ParseSignatureInput(), got %v", err)
 	}
 
-	// Create operations
+	// Create signer
+	signer := httpsig.NewSigner(httpsig.AlgorithmRSAPSSSHA512, func(ctx context.Context, kid string) (interface{}, error) {
+		return testRSAPrivateKey, nil
+	})
 	verifier := httpsig.NewVerifier(func(ctx context.Context, kid string) (interface{}, error) {
 		return testRSAPublicKey, nil
 	})
 
 	// Create request
-	r := sampleRequest()
+	r := sampleTestRequest()
 
-	// Parse signature set
-	signatures, err := httpsig.ParseSignatureSet(rawSignature)
+	sig, err := signer.Sign(context.Background(), sigInputs[0], r)
 	if err != nil {
-		t.Fatalf("unexpected error httpsig.ParseSignatureSet(), got %v", err)
-	}
-	sigFromSigSet, _ := signatures.Get(sigInputs[0].ID)
-
-	// Check validity
-	valid, errVerify := verifier.Verify(context.Background(), sigInputs[0], sigFromSigSet, r)
-	if errVerify != nil {
-		t.Fatalf("unable to verify: %v", errVerify)
+		t.Fatalf("unable to sign: %v", err)
 	}
 
-	// Expected
-	if !valid {
-		t.Fatalf("expected valid, got %v", valid)
-	}
-}
-
-// https://www.ietf.org/id/draft-ietf-httpbis-message-signatures-01.html#section-a.3.2.2
-func Test_SigVer_Minimal_Recommended(t *testing.T) {
-	rawSigInput := `sig1=(); alg=hs2019; kid="test-key-a"; created=1402170695`
-	rawSignature := `sig1=:F0KlO2pMfxIbW11zInSXIciUA517Q+MLclZoWd0zEwAgLPriBudnbrjd6C6+OKsEX1hxlFchALhZ4eTso/7iHgRZV2geuIrtBOjPMRiTJc8OIEvCUc518JYQK4ZXUfLx58Gp1gggWPf9Eh/2xdRl0dIFTvdX8B9im+kEMaMT+fA1OB/T643P2d9MZRkAVQUnmZA2/atH+sbCjNeeOniWe7Bk3HYvrYUHNnFXjApbzSO97goK9O5zONqkJ8vjnZtynotXaL+fAsGxAiDwXXVZ8JLXrAAu/k7gdkgq0o5oxSNBPtKBAI5EogfZBN9k87lWBfcqNV2ZQd+UJ8TMAziYEQ==:`
-
-	// Parse signature-inputs
-	sigInputs, err := httpsig.ParseSignatureInput(rawSigInput)
-	if err != nil {
-		t.Fatalf("unexpected error httpsig.ParseSignatureInput(), got %v", err)
-	}
-
-	// Create operations
-	verifier := httpsig.NewVerifier(func(ctx context.Context, kid string) (interface{}, error) {
-		return testRSAPublicKey, nil
-	})
-
-	// Create request
-	r := sampleRequest()
-
-	// Parse signature set
-	signatures, err := httpsig.ParseSignatureSet(rawSignature)
-	if err != nil {
-		t.Fatalf("unexpected error httpsig.ParseSignatureSet(), got %v", err)
-	}
-	sigFromSigSet, _ := signatures.Get(sigInputs[0].ID)
-
-	// Check validity
-	valid, errVerify := verifier.Verify(context.Background(), sigInputs[0], sigFromSigSet, r)
+	valid, errVerify := verifier.Verify(context.Background(), sigInputs[0], sig, r)
 	if errVerify != nil {
 		t.Fatalf("unable to verify: %v", errVerify)
 	}

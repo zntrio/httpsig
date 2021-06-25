@@ -58,12 +58,11 @@ func Test_verifier_Verify(t *testing.T) {
 			name: "nil request",
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 			},
 			wantErr: true,
@@ -72,12 +71,11 @@ func Test_verifier_Verify(t *testing.T) {
 			name: "sigInput expired",
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   1,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 1,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -92,7 +90,7 @@ func Test_verifier_Verify(t *testing.T) {
 					KeyID:     "test",
 					Expires:   0,
 					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					Headers:   []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -107,12 +105,11 @@ func Test_verifier_Verify(t *testing.T) {
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -127,12 +124,11 @@ func Test_verifier_Verify(t *testing.T) {
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -148,12 +144,11 @@ func Test_verifier_Verify(t *testing.T) {
 			},
 			args: args{
 				sigMeta: &SignatureInput{
-					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
-					KeyID:     "test",
-					Expires:   0,
-					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target", "x-not-exist"},
+					ID:      "sig1",
+					KeyID:   "test",
+					Expires: 0,
+					Created: uint64(time.Now().Unix()),
+					Headers: []string{"@created", "@request-target", "x-not-exist"},
 				},
 				r: httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
 			},
@@ -170,11 +165,11 @@ func Test_verifier_Verify(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
+					Algorithm: AlgorithmEdDSAEd25519BLAKE2B512,
 					KeyID:     "test",
 					Expires:   uint64(time.Now().Unix()) + 1000,
 					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target", "*expires", "x-custom-header"},
+					Headers:   []string{"@created", "@request-target", "@expires", "x-custom-header"},
 				},
 				signature: []byte{},
 				r: func() *http.Request {
@@ -197,11 +192,34 @@ func Test_verifier_Verify(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
+					Algorithm: AlgorithmRSAPSSSHA512,
 					KeyID:     "test",
 					Expires:   0,
 					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					Headers:   []string{"@created", "@request-target"},
+				},
+				signature: []byte{},
+				r:         httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
+			},
+			wantErr: false,
+			want:    false,
+		},
+		{
+			name: "rsassa-pkcs",
+			fields: fields{
+				keyResolverFunc: func(ctx context.Context, kid string) (interface{}, error) {
+					priv, _ := rsa.GenerateKey(rand.Reader, 2048)
+					return &priv.PublicKey, nil
+				},
+			},
+			args: args{
+				sigMeta: &SignatureInput{
+					ID:        "sig1",
+					Algorithm: AlgorithmRSAV15SHA256,
+					KeyID:     "test",
+					Expires:   0,
+					Created:   uint64(time.Now().Unix()),
+					Headers:   []string{"@created", "@request-target"},
 				},
 				signature: []byte{},
 				r:         httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
@@ -220,11 +238,11 @@ func Test_verifier_Verify(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
+					Algorithm: AlgorithmECDSAP256SHA256,
 					KeyID:     "test",
 					Expires:   0,
 					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					Headers:   []string{"@created", "@request-target"},
 				},
 				signature: []byte{},
 				r:         httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
@@ -244,11 +262,11 @@ func Test_verifier_Verify(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
+					Algorithm: AlgorithmHMACSHA256,
 					KeyID:     "test",
 					Expires:   0,
 					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					Headers:   []string{"@created", "@request-target"},
 				},
 				signature: []byte{},
 				r:         httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),
@@ -266,11 +284,11 @@ func Test_verifier_Verify(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Algorithm: AlgorithmHS2019,
+					Algorithm: AlgorithmHMACSHA256,
 					KeyID:     "test",
 					Expires:   0,
 					Created:   uint64(time.Now().Unix()),
-					Headers:   []string{"*created", "*request-target"},
+					Headers:   []string{"@created", "@request-target"},
 				},
 				signature: []byte{},
 				r:         httptest.NewRequest(http.MethodPost, "http://localhost:8080/api/v1/webhook", bytes.NewBufferString("{}")),

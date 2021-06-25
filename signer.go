@@ -22,9 +22,11 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/sha512"
 	"errors"
 	"fmt"
@@ -32,8 +34,9 @@ import (
 )
 
 // NewSigner returns a signer implementation instance for `hs2019` only.
-func NewSigner(krf KeyResolverFunc) Signer {
+func NewSigner(alg Algorithm, krf KeyResolverFunc) Signer {
 	return &signer{
+		alg:             alg,
 		keyResolverFunc: krf,
 	}
 }
@@ -41,6 +44,7 @@ func NewSigner(krf KeyResolverFunc) Signer {
 // -----------------------------------------------------------------------------
 
 type signer struct {
+	alg             Algorithm
 	keyResolverFunc KeyResolverFunc
 }
 
@@ -54,16 +58,17 @@ func (s *signer) Sign(ctx context.Context, sigMeta *SignatureInput, r *http.Requ
 	if r == nil {
 		return nil, errors.New("unable to sign nil request")
 	}
+	if s.keyResolverFunc == nil {
+		return nil, errors.New("key resolver function is mandatory")
+	}
 
 	// Check expiration
 	if sigMeta.IsExpired() {
 		return nil, ErrExpiredSignature
 	}
 
-	// Only 'hs2019' algorithms are supported
-	if sigMeta.Algorithm != AlgorithmHS2019 {
-		return nil, ErrNotSupportedSignature
-	}
+	// Override sigMeta algorithm
+	sigMeta.Algorithm = s.alg
 
 	// Retrieve key from repository
 	key, err := s.keyResolverFunc(ctx, sigMeta.KeyID)
@@ -80,12 +85,24 @@ func (s *signer) Sign(ctx context.Context, sigMeta *SignatureInput, r *http.Requ
 		return nil, fmt.Errorf("unable to generate message: %w", err)
 	}
 
-	// Use appropriate verification according to key type
+	// Use appropriate signature according to key type
 	switch k := key.(type) {
 	case *rsa.PrivateKey:
-		return s.signRSA(k, msg)
+		switch s.alg {
+		case AlgorithmRSAPSSSHA512:
+			return s.signRSAPSS(k, msg)
+		case AlgorithmRSAV15SHA256:
+			return s.signRSAPKCS1(k, msg)
+		default:
+			return s.signRSAPSS(k, msg)
+		}
 	case *ecdsa.PrivateKey:
-		return s.signECDSA(k, msg)
+		switch s.alg {
+		case AlgorithmECDSAP256SHA256:
+			return s.signECDSA(k, msg)
+		default:
+			return s.signECDSA(k, msg)
+		}
 	case ed25519.PrivateKey:
 		return s.signEdDSA(k, msg)
 	case []byte:
@@ -99,8 +116,8 @@ func (s *signer) Sign(ctx context.Context, sigMeta *SignatureInput, r *http.Requ
 
 // -----------------------------------------------------------------------------
 
-// signRSA uses RSASSA-PSS with SHA-512
-func (s *signer) signRSA(priv *rsa.PrivateKey, protected []byte) ([]byte, error) {
+// signRSAPSS uses RSASSA-PSS with SHA-512
+func (s *signer) signRSAPSS(priv *rsa.PrivateKey, protected []byte) ([]byte, error) {
 	// Compute SHA-512
 	h := sha512.Sum512(protected)
 
@@ -114,10 +131,31 @@ func (s *signer) signRSA(priv *rsa.PrivateKey, protected []byte) ([]byte, error)
 	return sig, nil
 }
 
-// signECDSA uses private key curve with SHA-512
+// signRSAPKCS1 uses RSASSA-PKCS1-v1_5 with SHA-256
+func (s *signer) signRSAPKCS1(priv *rsa.PrivateKey, protected []byte) ([]byte, error) {
+	// Compute SHA-256
+	h := sha256.Sum256(protected)
+
+	// Sign the request
+	sig, err := rsa.SignPSS(rand.Reader, priv, crypto.SHA256, h[:], nil)
+	if err != nil {
+		return nil, fmt.Errorf("unable to sign request: %w", err)
+	}
+
+	// Default to false
+	return sig, nil
+}
+
+// signECDSA uses private key curve with SHA-256
 func (s *signer) signECDSA(priv *ecdsa.PrivateKey, protected []byte) ([]byte, error) {
-	// Compute SHA-512
-	h := sha512.Sum512(protected)
+	var h [32]byte
+
+	switch priv.Curve {
+	case elliptic.P256():
+		h = sha256.Sum256(protected)
+	default:
+		return nil, fmt.Errorf("unsupported curve: %s", priv.Curve)
+	}
 
 	// Sign the request
 	sig, err := ecdsa.SignASN1(rand.Reader, priv, h[:])
@@ -136,10 +174,10 @@ func (s *signer) signEdDSA(priv ed25519.PrivateKey, protected []byte) ([]byte, e
 	return sig, nil
 }
 
-// sealHMAC uses HMAC with SHA-512
+// sealHMAC uses HMAC with SHA-256
 func (s *signer) sealHMAC(secret, protected []byte) ([]byte, error) {
-	// Compute HMAC-SHA-512
-	hm := hmac.New(sha512.New, secret)
+	// Compute HMAC-SHA-256
+	hm := hmac.New(sha256.New, secret)
 	if _, err := hm.Write(protected); err != nil {
 		return nil, fmt.Errorf("unable to write payload for hmac: %w", err)
 	}

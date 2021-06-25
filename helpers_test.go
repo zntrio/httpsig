@@ -39,7 +39,7 @@ Digest: SHA-256=X48E9qOokqqrvdts8nOJRJN3OWDUoyWxBf7kbu9DBPE=
 Content-Length: 18
 Signature-Input: sig1=(*request-target, *created, host, date,
     cache-control, x-empty-header, x-example); kid="test-key-a";
-    alg=hs2019; created=1402170695; expires=1402170995
+    alg=rsa-pss-sha512; created=1402170695; expires=1402170995
 Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0RAxn/1BUe
     Zx/Kdrq32DrfakQ6bPsvB9aqZqognNT6be4olHROIkeV879RrsrObury8L9SCEibe
     oHyqU/yCjphSmEdd7WD+zrchK57quskKwRefy2iEC5S2uAH0EPyOZKWlvbKmKu5q4
@@ -49,7 +49,7 @@ Signature: sig1=:K2qGT5srn2OGbOIDzQ6kYT+ruaycnDAAUpKv+ePFfD0RAxn/1BUe
 X-Forwarded-For: 192.0.2.123
 Signature-Input: reverse_proxy_sig=(*created, host, date,
     signature:sig1, x-forwarded-for); kid="test-key-a";
-    alg=hs2019; created=1402170695; expires=1402170695.25
+    alg=rsa-pss-sha512; created=1402170695; expires=1402170695.25
 Signature: reverse_proxy_sig=:ON3HsnvuoTlX41xfcGWaOEVo1M3bJDRBOp0Pc/O
     jAOWKQn0VMY0SvMMWXS7xG+xYVa152rRVAo6nMV7FS3rv0rR5MzXL8FCQ2A35DCEN
     LOhEgj/S1IstEAEFsKmE9Bs7McBsCtJwQ3hMqdtFenkDffSoHOZOInkTYGafkoy78
@@ -92,80 +92,105 @@ func Test_protected(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Headers:   []string{"*request-target", "*created", "*expires", "host", "date"},
+					Headers:   []string{"@request-target", "@created", "@expires", "host", "date"},
 					KeyID:     "test-key-a",
-					Algorithm: "hs2019",
+					Algorithm: "rsa-pss-sha512",
 					Created:   1402170695,
 					Expires:   1402170995,
+					Nonce:     "1234567890",
 				},
 				r: sampleRequest(),
 			},
 			wantErr: false,
-			want: "*request-target: post /foo?param=value&pet=dog\n" +
-				"*created: 1402170695\n" +
-				"*expires: 1402170995\n" +
+			want: "@request-target: post /foo?param=value&pet=dog\n" +
+				"@created: 1402170695\n" +
+				"@expires: 1402170995\n" +
 				"host: example.com\n" +
-				"date: Tue, 07 Jun 2014 20:51:35 GMT\n",
+				"date: Tue, 07 Jun 2014 20:51:35 GMT\n" +
+				`@signature-params: (@request-target, @created, @expires, host, date); alg="rsa-pss-sha512"; keyid="test-key-a"; created=1402170695; expires=1402170995; nonce="1234567890"` + "\n",
+		},
+		{
+			name: "valid - no header",
+			args: args{
+				sigMeta: &SignatureInput{
+					ID:        "sig1",
+					Headers:   []string{},
+					KeyID:     "test-key-a",
+					Algorithm: "rsa-pss-sha512",
+					Created:   1402170695,
+					Expires:   1402170995,
+					Nonce:     "1234567890",
+				},
+				r: sampleRequest(),
+			},
+			wantErr: false,
+			want:    `@signature-params: (); alg="rsa-pss-sha512"; keyid="test-key-a"; created=1402170695; expires=1402170995; nonce="1234567890"` + "\n",
 		},
 		{
 			name: "valid - double header",
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Headers:   []string{"*request-target", "*created", "*expires", "host", "date", "x-custom"},
+					Headers:   []string{"@request-target", "@created", "@expires", "host", "date", "x-custom"},
 					KeyID:     "test-key-a",
-					Algorithm: "hs2019",
+					Algorithm: "rsa-pss-sha512",
 					Created:   1402170695,
 					Expires:   1402170995,
+					Nonce:     "1234567890",
 				},
 				r: sampleRequest(),
 			},
 			wantErr: false,
-			want: "*request-target: post /foo?param=value&pet=dog\n" +
-				"*created: 1402170695\n" +
-				"*expires: 1402170995\n" +
+			want: "@request-target: post /foo?param=value&pet=dog\n" +
+				"@created: 1402170695\n" +
+				"@expires: 1402170995\n" +
 				"host: example.com\n" +
 				"date: Tue, 07 Jun 2014 20:51:35 GMT\n" +
-				"x-custom: 1, 2\n",
+				"x-custom: 1, 2\n" +
+				`@signature-params: (@request-target, @created, @expires, host, date, x-custom); alg="rsa-pss-sha512"; keyid="test-key-a"; created=1402170695; expires=1402170995; nonce="1234567890"` + "\n",
 		},
 		{
 			name: "valid - dictionary prefix",
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Headers:   []string{"*request-target", "*created", "x-dictionary:a", "x-dictionary:b", "x-dictionary:c"},
+					Headers:   []string{"@request-target", "@created", "x-dictionary:a", "x-dictionary:b", "x-dictionary:c"},
 					KeyID:     "test-key-a",
-					Algorithm: "hs2019",
+					Algorithm: "rsa-pss-sha512",
 					Created:   1402170695,
 					Expires:   1402170995,
+					Nonce:     "1234567890",
 				},
 				r: sampleRequest(),
 			},
 			wantErr: false,
-			want: "*request-target: post /foo?param=value&pet=dog\n" +
-				"*created: 1402170695\n" +
+			want: "@request-target: post /foo?param=value&pet=dog\n" +
+				"@created: 1402170695\n" +
 				"x-dictionary: a=1\n" +
 				"x-dictionary: b=2;x=1;y=2\n" +
-				"x-dictionary: c=(a b c)\n",
+				"x-dictionary: c=(a b c)\n" +
+				`@signature-params: (@request-target, @created, x-dictionary:a, x-dictionary:b, x-dictionary:c); alg="rsa-pss-sha512"; keyid="test-key-a"; created=1402170695; expires=1402170995; nonce="1234567890"` + "\n",
 		},
 		{
 			name: "valid - list prefix",
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Headers:   []string{"*request-target", "*created", "x-list-a:0", "x-list-a:2"},
+					Headers:   []string{"@request-target", "@created", "x-list-a:0", "x-list-a:2"},
 					KeyID:     "test-key-a",
-					Algorithm: "hs2019",
+					Algorithm: "rsa-pss-sha512",
 					Created:   1402170695,
 					Expires:   1402170995,
+					Nonce:     "1234567890",
 				},
 				r: sampleRequest(),
 			},
 			wantErr: false,
-			want: "*request-target: post /foo?param=value&pet=dog\n" +
-				"*created: 1402170695\n" +
+			want: "@request-target: post /foo?param=value&pet=dog\n" +
+				"@created: 1402170695\n" +
 				"x-list-a: \n" +
-				"x-list-a: a, b\n",
+				"x-list-a: a, b\n" +
+				`@signature-params: (@request-target, @created, x-list-a:0, x-list-a:2); alg="rsa-pss-sha512"; keyid="test-key-a"; created=1402170695; expires=1402170995; nonce="1234567890"` + "\n",
 		},
 	}
 	for _, tt := range tests {
