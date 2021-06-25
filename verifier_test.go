@@ -165,7 +165,7 @@ func Test_verifier_Verify(t *testing.T) {
 			args: args{
 				sigMeta: &SignatureInput{
 					ID:        "sig1",
-					Algorithm: AlgorithmEdDSAEd25519BLAKE2B512,
+					Algorithm: AlgorithmEdDSAEd25519SHA512,
 					KeyID:     "test",
 					Expires:   uint64(time.Now().Unix()) + 1000,
 					Created:   uint64(time.Now().Unix()),

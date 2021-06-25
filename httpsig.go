@@ -64,7 +64,7 @@ func ParseSignatureInput(input string) ([]*SignatureInput, error) {
 		case AlgorithmRSAV15SHA256:
 		case AlgorithmHMACSHA256:
 		case AlgorithmECDSAP256SHA256:
-		case AlgorithmEdDSAEd25519BLAKE2B512:
+		case AlgorithmEdDSAEd25519SHA512:
 		default:
 			// Skip invalid signature algorithm
 			continue
