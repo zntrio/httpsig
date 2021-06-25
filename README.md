@@ -13,7 +13,7 @@ the draft specification [draft-ietf-httpbis-message-signatures](https://www.ietf
   * `rsa-v1_5-sha256` (equiv. JWA RS256)
   * `hmac-sha256` (equiv. JWA HS256)
   * `ecdsa-p256-sha256` '(equiv. JWA ES256)
-  * `eddsa-ed25519-blake2b512` (not in the standard) (equiv JWA EdDSA)
+  * `eddsa-ed25519-sha512` (not in the standard) (equiv JWA EdDSA)
 
 ## Protocol
 
@@ -119,4 +119,51 @@ for _, si := range inputs {
     ... Error during verification
   }
 }
+```
+
+Using a custom `RoundTripper`
+
+```go
+type SignerTransport struct {
+  http.RoundTripper
+  Signer httpsig.Signer
+  KeyID  string
+}
+
+func (ct *SignerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+  // Prepare a signature-input
+  si := httpsig.SignatureInput{
+    ID: "sig1",
+    KeyID: ct.KeyID,
+    Headers: []string{"@request-target", "host", "Authorization", "Digest"},
+    Created: uint64(time.Now().Unix()),
+    Nonce: uniuri.NewLen(32),
+  }
+
+  // Generate the signature
+  sig, err := ct.Signer.Sign(req.Context(), si, r)
+  if err != nil {
+    return nil, fmt.Errorf("unable to sign the request: %w", err)
+  }
+
+  // Prepare signature set
+  signSet := &httpsig.SignatureSet{}
+  signSet.Add(si.ID(), sig)
+
+  // Assign to request headers.
+  req.Header.Set("Signature-Input", si.String())
+  req.Header.Set("Signature", signSet.String())
+
+  // Delegate to parent RoundTripper
+  return ct.RoundTripper.RoundTrip(req)
+}
+
+// Create a HTTP client with custom transport.
+url := "http://localhost:8200/api/v1/resource"
+tr := &SignerTransport{
+  Signer: signer,
+  KeyID: "client-public-keyid",
+}
+client := &http.Client{Transport: tr}
+resp, err := client.Get(url)
 ```

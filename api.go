@@ -35,8 +35,8 @@ const (
 	AlgorithmHMACSHA256 Algorithm = "hmac-sha256"
 	// AlgorithmECDSAP256SHA256 represents signature algorithm using ECDA P-256 curve with SHA-256
 	AlgorithmECDSAP256SHA256 Algorithm = "ecdsa-p256-sha256"
-	// AlgorithmEdDSAEd25519BLAKE512 represents signature algorithm using EdDSA Ed25519 curve with BLAKE2B-512
-	AlgorithmEdDSAEd25519BLAKE2B512 Algorithm = "eddsa-ed25519-blake2b512"
+	// AlgorithmEdDSAEd25519SHA512 represents signature algorithm using EdDSA Ed25519 curve with SHA-512
+	AlgorithmEdDSAEd25519SHA512 Algorithm = "eddsa-ed25519-sha512"
 )
 
 // Verifier describes signature verification implementation contract.

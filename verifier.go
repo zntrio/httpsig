@@ -65,7 +65,7 @@ func (v *verifier) Verify(ctx context.Context, sigMeta *SignatureInput, signatur
 	case AlgorithmRSAV15SHA256:
 	case AlgorithmHMACSHA256:
 	case AlgorithmECDSAP256SHA256:
-	case AlgorithmEdDSAEd25519BLAKE2B512:
+	case AlgorithmEdDSAEd25519SHA512:
 	default:
 		return false, ErrNotSupportedSignature
 	}

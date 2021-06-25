@@ -163,7 +163,7 @@ func Test_signer_Sign(t *testing.T) {
 					_, priv, _ := ed25519.GenerateKey(rand.Reader)
 					return priv, nil
 				},
-				alg: AlgorithmEdDSAEd25519BLAKE2B512,
+				alg: AlgorithmEdDSAEd25519SHA512,
 			},
 			args: args{
 				sigMeta: &SignatureInput{
